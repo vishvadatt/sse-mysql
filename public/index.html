@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>SSE Example</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+      }
+      #data-container {
+        margin-top: 20px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        padding: 8px;
+        text-align: left;
+        border: 1px solid #ddd;
+      }
+      #progress-bar {
+        width: 100%;
+        background-color: #f3f3f3;
+        border: 1px solid #ddd;
+        height: 20px;
+        margin-top: 20px;
+      }
+      #progress-bar-inner {
+        width: 0;
+        height: 100%;
+        background-color: #4caf50;
+        text-align: center;
+        line-height: 20px;
+        color: white;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="data-container">
+      <table id="data-table">
+        <thead>
+          <tr>
+            <!-- Add your table headers here -->
+            <th>ID</th>
+            <th>Name</th>
+            <th>Email</th>
+            <!-- Add more headers as needed -->
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div id="progress-container">
+      <div id="progress-bar">
+        <div id="progress-bar-inner">0%</div>
+      </div>
+      <div id="status">Fetching data...</div>
+    </div>
+
+    <script>
+      const eventSource = new EventSource("/stream-data");
+      const dataTableBody = document.querySelector("#data-table tbody");
+      const progressBarInner = document.getElementById("progress-bar-inner");
+      const status = document.getElementById("status");
+
+      let totalFetched = 0;
+      let totalRecords = 0;
+
+      // Fetch total number of records
+      fetch("/total-records")
+        .then((response) => response.json())
+        .then((data) => {
+          totalRecords = data.totalRecords;
+        });
+
+      eventSource.onmessage = function (event) {
+        const chunk = JSON.parse(event.data);
+        totalFetched += chunk.length;
+
+        chunk.forEach((row) => {
+          const rowElement = document.createElement("tr");
+          rowElement.innerHTML = `
+                    <td>${row.id}</td>
+                    <td>${row.title}</td>
+                    <td>${row.url}</td>
+                    <td>${row.thumbnailUrl}</td>
+                    <td>${row.albumId}</td>
+                    <!-- Add more cells as needed -->
+                `;
+          dataTableBody.appendChild(rowElement);
+        });
+
+        // Update progress
+        const progressPercent = (totalFetched / totalRecords) * 100;
+        progressBarInner.style.width = progressPercent + "%";
+        progressBarInner.textContent = Math.round(progressPercent) + "%";
+      };
+
+      eventSource.addEventListener("done", function (event) {
+        const data = JSON.parse(event.data);
+        status.textContent = data.message;
+        eventSource.close();
+      });
+
+      eventSource.onerror = function (event) {
+        console.error("Error receiving SSE data:", event);
+        status.textContent = "Error fetching data.";
+        eventSource.close();
+      };
+    </script>
+  </body>
+</html>
